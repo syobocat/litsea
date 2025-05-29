@@ -1,5 +1,5 @@
 [package]
-name = "rust_adaboost"
+name = "litsea"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,6 @@ edition = "2021"
 clap = { version = "4.5.39", features = ["derive"] }
 ctrlc = "3.4.7"
 rayon = "1.10.0"
+regex = "1.10.5"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"

@@ -1,8 +1,8 @@
 mod adaboost;
 use adaboost::AdaBoost;
 use clap::Parser;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// CLI args
 #[derive(Parser, Debug)]

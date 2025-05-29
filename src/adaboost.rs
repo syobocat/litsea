@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,7 +14,7 @@ pub struct AdaBoost {
     threshold: f64,
     num_iterations: usize,
     num_threads: usize,
-    D: Vec<f64>,
+    instance_weights: Vec<f64>,
     model: Vec<f64>,
     features: Vec<String>,
     labels: Vec<Label>,
@@ -29,7 +29,7 @@ impl AdaBoost {
             threshold,
             num_iterations,
             num_threads,
-            D: vec![],
+            instance_weights: vec![],
             model: vec![],
             features: vec![],
             labels: vec![],
@@ -72,7 +72,7 @@ impl AdaBoost {
         self.features = map.keys().cloned().collect();
         self.model = map.values().cloned().collect();
 
-        self.D.reserve(self.num_instances);
+        self.instance_weights.reserve(self.num_instances);
         self.labels.reserve(self.num_instances);
         self.instances.reserve(self.num_instances);
         self.instances_buf.reserve(buf_size);
@@ -103,12 +103,13 @@ impl AdaBoost {
 
             let end = self.instances_buf.len();
             self.instances.push((start, end));
-            self.D.push((-2.0 * label as f64 * score).exp());
+            self.instance_weights
+                .push((-2.0 * label as f64 * score).exp());
 
-            if self.D.len() % 1000 == 0 {
+            if self.instance_weights.len() % 1000 == 0 {
                 eprint!(
                     "\rloading instances...: {}/{} instances loaded",
-                    self.D.len(),
+                    self.instance_weights.len(),
                     self.num_instances
                 );
             }
@@ -118,11 +119,13 @@ impl AdaBoost {
     }
 
     pub fn train(&mut self, running: Arc<AtomicBool>) {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.num_threads)
+            .build()
+            .expect("Failed to build thread pool");
+
         let num_features = self.features.len();
-        let mut h_best = 0;
-        let mut e_best = 0.5;
-        let mut a = 0.0;
-        let mut a_exp = 1.0;
+        let mut alpha_exp = 1.0;
 
         for t in 0..self.num_iterations {
             if !running.load(Ordering::SeqCst) {
@@ -130,32 +133,36 @@ impl AdaBoost {
             }
 
             let mut errors = vec![0.0f64; num_features];
-            let mut D_sum = 0.0;
-            let mut D_sum_plus = 0.0;
+            let mut instance_weight_sum = 0.0;
+            let mut positive_weight_sum = 0.0;
 
-            (0..self.num_instances).into_par_iter().for_each(|i| {
-                let label = self.labels[i];
-                let (start, end) = self.instances[i];
-                let hs = &self.instances_buf[start..end];
-                let pred = if hs.binary_search(&h_best).is_ok() {
-                    1
-                } else {
-                    -1
-                };
+            let updated_instance_weights: Vec<f64> = pool.install(|| {
+                (0..self.num_instances)
+                    .into_par_iter()
+                    .map(|i| {
+                        let label = self.labels[i];
+                        let (start, end) = self.instances[i];
+                        let hs = &self.instances_buf[start..end];
+                        let pred = if hs.binary_search(&0).is_ok() { 1 } else { -1 };
 
-                if label * pred < 0 {
-                    self.D[i] *= a_exp;
-                } else {
-                    self.D[i] /= a_exp;
-                }
+                        if label * pred < 0 {
+                            self.instance_weights[i] * alpha_exp
+                        } else {
+                            self.instance_weights[i] / alpha_exp
+                        }
+                    })
+                    .collect()
             });
 
-            // Normalization & error calculation (serial to maintain determinism)
+            for (i, d) in updated_instance_weights.into_iter().enumerate() {
+                self.instance_weights[i] = d;
+            }
+
             for i in 0..self.num_instances {
-                let d = self.D[i];
-                D_sum += d;
+                let d = self.instance_weights[i];
+                instance_weight_sum += d;
                 if self.labels[i] > 0 {
-                    D_sum_plus += d;
+                    positive_weight_sum += d;
                 }
                 let delta = d * self.labels[i] as f64;
                 for &h in &self.instances_buf[self.instances[i].0..self.instances[i].1] {
@@ -163,32 +170,38 @@ impl AdaBoost {
                 }
             }
 
-            e_best = D_sum_plus / D_sum;
-            h_best = 0;
+            // 各ループで初期化
+            let mut best_error_rate = positive_weight_sum / instance_weight_sum;
+            let mut best_feature_index: FeatureIndex = 0;
 
             for h in 1..num_features {
-                let mut e = errors[h] + D_sum_plus;
-                e /= D_sum;
-                if (0.5 - e).abs() > (0.5 - e_best).abs() {
-                    h_best = h;
-                    e_best = e;
+                let mut e = errors[h] + positive_weight_sum;
+                e /= instance_weight_sum;
+                if (0.5 - e).abs() > (0.5 - best_error_rate).abs() {
+                    best_feature_index = h;
+                    best_error_rate = e;
                 }
             }
 
-            eprint!("\rIteration {} - margin: {}", t, (0.5 - e_best).abs());
+            eprint!(
+                "\rIteration {} - margin: {}",
+                t,
+                (0.5 - best_error_rate).abs()
+            );
 
-            if (0.5 - e_best).abs() < self.threshold {
+            if (0.5 - best_error_rate).abs() < self.threshold {
                 break;
             }
 
-            e_best = e_best.clamp(1e-10, 1.0 - 1e-10);
-            a = 0.5 * ((1.0 - e_best) / e_best).ln();
-            a_exp = a.exp();
-            self.model[h_best] += a;
+            best_error_rate = best_error_rate.clamp(1e-10, 1.0 - 1e-10);
 
-            // Normalize D
-            for d in &mut self.D {
-                *d /= D_sum;
+            let alpha = 0.5 * ((1.0 - best_error_rate) / best_error_rate).ln();
+            self.model[best_feature_index] += alpha;
+            alpha_exp = alpha.exp();
+
+            // instance_weights の正規化
+            for d in &mut self.instance_weights {
+                *d /= instance_weight_sum;
             }
         }
 
@@ -228,7 +241,7 @@ impl AdaBoost {
             }
         }
 
-        let mut sorted: BTreeMap<_, _> = m.into_iter().collect();
+        let sorted: BTreeMap<_, _> = m.into_iter().collect();
         self.features = sorted.keys().cloned().collect();
         self.model = sorted.values().cloned().collect();
         Ok(())
@@ -285,5 +298,49 @@ impl AdaBoost {
             "Confusion Matrix: TP: {}, FP: {}, FN: {}, TN: {}",
             pp, pn, np, nn
         );
+    }
+
+    pub fn add_instance(&mut self, attributes: HashSet<String>, label: i8) {
+        // 現在のインスタンスの属性開始位置
+        let start = self.instances_buf.len();
+        // HashSet の順序は不定のためソートして安定化する
+        let mut attrs: Vec<String> = attributes.into_iter().collect();
+        attrs.sort();
+        for attr in attrs.iter() {
+            // すでに存在する属性ならそのインデックスを取得、なければ追加して新たなインデックスを取得
+            let feature_index = if let Some(pos) = self.features.iter().position(|f| f == attr) {
+                pos
+            } else {
+                self.features.push(attr.clone());
+                self.model.push(0.0);
+                self.features.len() - 1
+            };
+            self.instances_buf.push(feature_index);
+        }
+        // 終了インデックス
+        let end = self.instances_buf.len();
+        // インスタンスごとの属性インデックスの範囲を記録
+        self.instances.push((start, end));
+        // 対応するラベルを登録
+        self.labels.push(label);
+        // 初期のインスタンス重みを 1.0 とする
+        self.instance_weights.push(1.0);
+        // インスタンス数の更新
+        self.num_instances += 1;
+    }
+
+    /// 属性集合に基づいて予測を行い、ラベル (1 または -1) を返す
+    pub fn predict(&self, attributes: HashSet<String>) -> i8 {
+        let mut score = 0.0;
+        for attr in attributes {
+            if let Some(idx) = self.features.iter().position(|f| f == &attr) {
+                score += self.model[idx];
+            }
+        }
+        if score >= 0.0 {
+            1
+        } else {
+            -1
+        }
     }
 }
