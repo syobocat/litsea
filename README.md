@@ -8,6 +8,8 @@ There is a small plant called Litsea cubeba (Aomoji) in the same camphoraceae fa
 
 Prepare a corpus with words separated by spaces in advance.
 
+coupus.txt
+
 ```text
 Litsea は TinySegmenter を 参考 に 開発 され た 、 Rust で 実装 され た 極め て コンパクト な 単語 分割 ソフトウェア です 。
 ```
