@@ -1,1 +1,1 @@
-Litsea は TinySegmenter を 参考 に 開発 され た 、 Rust で 実装 され た 極め て コンパクト な 単語 分割 ソフトウェア です 。
+Litsea は TinySegmenter を 参考 に 開発 さ れ た 、 Rust で 実装 さ れ た 極めて コンパクト な 単語 分割 ソフトウェア です 。

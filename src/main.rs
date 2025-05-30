@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::error::Error;
+use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -16,7 +17,10 @@ use litsea::segmenter::Segmenter;
     about = "Extract features from a corpus",
     version = get_version(),
 )]
-struct ExtractArgs {}
+struct ExtractArgs {
+    corpus_file: String,
+    features_file: String,
+}
 
 #[derive(Debug, Args)]
 #[clap(author,
@@ -27,13 +31,13 @@ struct TrainArgs {
     #[arg(short, long, default_value = "0.01")]
     threshold: f64,
 
-    #[arg(short = 'n', long, default_value = "100")]
+    #[arg(short = 'i', long, default_value = "100")]
     num_iterations: usize,
 
-    #[arg(short = 'm', long, default_value = "1")]
+    #[arg(short = 'n', long, default_value = "1")]
     num_threads: usize,
 
-    #[arg(short = 'M', long)]
+    #[arg(short = 'm', long)]
     load_model: Option<String>,
 
     instances_file: String,
@@ -68,8 +72,13 @@ struct CommandArgs {
     command: Commands,
 }
 
-fn extract(_args: ExtractArgs) -> Result<(), Box<dyn Error>> {
-    let mut stdout = io::BufWriter::new(io::stdout());
+fn extract(args: ExtractArgs) -> Result<(), Box<dyn Error>> {
+    // Create a file to write the features
+    let features_file = File::create(&args.features_file)?;
+    let mut features = io::BufWriter::new(features_file);
+
+    // Initialize the segmenter
+    // No model is loaded, so it will use the default feature extraction
     let mut segmenter = Segmenter::new(None);
 
     // learner function to write features
@@ -77,16 +86,18 @@ fn extract(_args: ExtractArgs) -> Result<(), Box<dyn Error>> {
     // It takes a set of attributes and a label, and writes them to stdout
     let mut learner = |attributes: HashSet<String>, label: i8| {
         let mut attrs: Vec<String> = attributes.into_iter().collect();
-        attrs.sort(); // 再現性のためにソート
+        attrs.sort();
         let mut line = vec![label.to_string()];
         line.extend(attrs);
-        writeln!(stdout, "{}", line.join("\t")).expect("Failed to write features");
+        writeln!(features, "{}", line.join("\t")).expect("Failed to write features");
     };
 
     // Read sentences from stdin
     // Each line is treated as a separate sentence
-    let stdin = io::stdin();
-    for line in stdin.lock().lines() {
+    let corpus_file = File::open(&args.corpus_file)?;
+    let corpus = io::BufReader::new(corpus_file);
+
+    for line in corpus.lines() {
         match line {
             Ok(line) => {
                 let line = line.trim();
