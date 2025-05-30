@@ -4,31 +4,72 @@ Litsea is an extremely compact word segmentation software implemented in Rust, i
 
 There is a small plant called Litsea cubeba (Aomoji) in the same camphoraceae family as Lindera (Kuromoji). This is the origin of the name Litsea.
 
+## How to build Litsea
+
+Litsea is implemented in Rust. To build it, follow these steps:
+
+### Prerequisites
+
+- Install Rust (stable channel) from [rust-lang.org](https://www.rust-lang.org/).
+- Ensure Cargo (Rust’s package manager) is available.
+
+### Build Instructions
+
+1. **Clone the Repository**
+
+   If you haven't already cloned the repository, run:
+
+   ```sh
+   git clone https://github.com/mosuka/litsea.git
+   cd litsea
+   ```
+
+2. **Obtain Dependencies and Build**
+
+   In the project's root directory, run:
+
+   ```sh
+   cargo build --release
+   ```
+
+   The `--release` flag produces an optimized build.
+
+3. **Verify the Build**
+
+   Once complete, the executable will be in the `target/release` folder. Verify by running:
+
+   ```sh
+   ./target/release/litsea --help
+   ```
+
+### Additional Notes
+
+- Using the latest stable Rust ensures compatibility with dependencies and allows use of modern features.
+- Run `cargo update` to refresh your dependencies if needed.
+
 ## How to train models
 
 Prepare a corpus with words separated by spaces in advance.
 
-coupus.txt
+corpus.txt
 
 ```text
-Litsea は TinySegmenter を 参考 に 開発 さ れ た 、 Rust で 実装 さ れ た 極めて コンパクト な 単語 分割 ソフトウェア です 。
-
+Litsea is a word segmentation software developed based on TinySegmenter, implemented in Rust, and extremely compact.
 ```
 
-Extract the information and features from the corpus.
+Extract the information and features from the corpus:
 
-```shell
-litsea extract ./resources/corpus.txt ./resources/features.txt
+```sh
+./target/release/litsea extract ./resources/corpus.txt ./resources/features.txt
 ```
 
-Train the features output by the above command using AdaBoost.
-If the classification accuracy of the new weak classifier is 0.001 or less, and the number of repetitions is 10,000 or more, learning is terminated.
+Train the features output by the above command using AdaBoost. Training stops if the new weak classifier’s accuracy falls below 0.001 or after 10,000 iterations.
 
-```shell
-litsea train -t 0.001 -i 10000 ./resources/features.txt ./resources/model
+```sh
+./target/release/litsea train -t 0.001 -i 10000 ./resources/features.txt ./resources/model
 ```
 
-The result of executing `train` command is as follows.
+The output from the `train` command is similar to:
 
 ```text
 finding instances...: 61 instances found
@@ -43,32 +84,30 @@ Confusion Matrix: TP: 24, FP: 0, FN: 0, TN: 37
 
 ## How to segment sentences into words
 
-Use the learned model to segment sentences into words.
+Use the trained model to segment sentences:
 
-```shell
-echo "LitseaはTinySegmenterを参考に開発された、Rustで実装された極めてコンパクトな単語分割ソフトウェアです。" | litsea segment ./resources/model
+```sh
+echo "LitseaはTinySegmenterを参考に開発された、Rustで実装された極めてコンパクトな単語分割ソフトウェアです。" | ./target/release/litsea segment ./resources/model
 ```
 
-The result of executing `segment` command is as follows.
+The output will look like:
 
-'''text
+```text
 Litsea は TinySegmenter を 参考 に 開発 さ れ た 、 Rust で 実装 さ れ た 極めて コンパクト な 単語 分割 ソフトウェア です 。
-'''
+```
 
 ## Pre-trained models
 
-- JEITA\_Genpaku\_ChaSen\_IPAdic.model  
-It is a model trained using the morphologically analyzed corpus published by the Japan Electronics and Information Technology Industries Association (JEITA).
-We used the [Project Sugita Genpaku](http://www.genpaku.org/) analyzed with ChaSen+IPAdic.
+- **JEITA_Genpaku_ChaSen_IPAdic.model**  
+  This model is trained using the morphologically analyzed corpus published by the Japan Electronics and Information Technology Industries Association (JEITA). It employs data from [Project Sugita Genpaku] analyzed with ChaSen+IPAdic.
 
-- RWCP.model  
-It is extracted from the original [TinySegmenter](http://chasen.org/~taku/software/TinySegmenter/)
-and contains only the model part.
+- **RWCP.model**  
+  Extracted from the original [TinySegmenter](http://chasen.org/~taku/software/TinySegmenter/), this model contains only the segmentation component.
 
 ## How to retrain existing models
 
-You can resume learning from existing trained models and new corpora to improve performance.
+You can further improve performance by resuming training from an existing model with new corpora:
 
-```shell
-litsea train -t 0.001 -i 10000 -m ./resources/model ./resources/new_features.txt ./resources/new_model
+```sh
+./target/release/litsea train -t 0.001 -i 10000 -m ./resources/model ./resources/new_features.txt ./resources/new_model
 ```
