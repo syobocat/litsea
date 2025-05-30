@@ -4,7 +4,7 @@ Litsea is an extremely compact word segmentation software implemented in Rust, i
 
 There is a small plant called Litsea cubeba (Aomoji) in the same camphoraceae family as Lindera (Kuromoji). This is the origin of the name Litsea.
 
-## How to learn
+## How to train model
 
 Prepare a corpus with words separated by spaces in advance.
 
