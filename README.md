@@ -32,3 +32,13 @@ Use the learned model to segment sentences into words.
 ```shell
 echo "LitseaはTinySegmenterを参考に開発された、Rustで実装された極めてコンパクトな単語分割ソフトウェアです。" | litsea segment ./resources/model
 ```
+
+## Pre-trained model
+
+- JEITA\_Genpaku\_ChaSen\_IPAdic.model  
+It is a model trained using the morphologically analyzed corpus published by the Japan Electronics and Information Technology Industries Association (JEITA).
+We used the [Project Sugita Genpaku](http://www.genpaku.org/) analyzed with ChaSen+IPAdic.
+
+- RWCP.model  
+It is extracted from the original [TinySegmenter](http://chasen.org/~taku/software/TinySegmenter/)
+and contains only the model part.
