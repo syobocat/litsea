@@ -46,7 +46,6 @@ struct TrainArgs {
     version = get_version(),
 )]
 struct SegmentArgs {
-    /// モデルファイルへのパス
     model_file: String,
 }
 
@@ -73,7 +72,9 @@ fn extract(_args: ExtractArgs) -> Result<(), Box<dyn Error>> {
     let mut stdout = io::BufWriter::new(io::stdout());
     let mut segmenter = Segmenter::new(None);
 
-    // 出力専用 Learner クロージャ
+    // learner function to write features
+    // This function will be called for each word in the input sentences
+    // It takes a set of attributes and a label, and writes them to stdout
     let mut learner = |attributes: HashSet<String>, label: i8| {
         let mut attrs: Vec<String> = attributes.into_iter().collect();
         attrs.sort(); // 再現性のためにソート
@@ -82,7 +83,8 @@ fn extract(_args: ExtractArgs) -> Result<(), Box<dyn Error>> {
         writeln!(stdout, "{}", line.join("\t")).expect("Failed to write features");
     };
 
-    // 標準入力から各行を読み取り
+    // Read sentences from stdin
+    // Each line is treated as a separate sentence
     let stdin = io::stdin();
     for line in stdin.lock().lines() {
         match line {
