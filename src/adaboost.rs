@@ -6,6 +6,11 @@ use std::sync::Arc;
 
 type Label = i8;
 
+/// AdaBoost implementation for binary classification
+/// This implementation uses a simple feature extraction method
+/// and is designed for educational purposes.
+/// It is not optimized for performance or large datasets.
+///
 #[derive(Debug)]
 pub struct AdaBoost {
     pub threshold: f64,
@@ -21,6 +26,12 @@ pub struct AdaBoost {
 }
 
 impl AdaBoost {
+    /// Creates a new [`AdaBoost`].
+    /// # Arguments
+    /// * `threshold`: The threshold for stopping the training.
+    /// * `num_iterations`: The maximum number of iterations for training.
+    /// * `num_threads`: The number of threads to use for training (not used in this implementation).
+    /// # Returns: A new instance of [`AdaBoost`].
     pub fn new(threshold: f64, num_iterations: usize, num_threads: usize) -> Self {
         AdaBoost {
             threshold,
@@ -36,6 +47,12 @@ impl AdaBoost {
         }
     }
 
+    /// Initializes the features from a file.
+    /// The file should contain lines with a label followed by space-separated features.
+    /// # Arguments
+    /// * `filename`: The path to the file containing the features.
+    /// # Returns: A result indicating success or failure.
+    /// # Errors: Returns an error if the file cannot be opened or read.
     pub fn initialize_features(&mut self, filename: &str) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
@@ -77,6 +94,12 @@ impl AdaBoost {
         Ok(())
     }
 
+    /// Initializes the instances from a file.
+    /// The file should contain lines with a label followed by space-separated features.
+    /// # Arguments
+    /// * `filename`: The path to the file containing the instances.
+    /// # Returns: A result indicating success or failure.
+    /// # Errors: Returns an error if the file cannot be opened or read.
     pub fn initialize_instances(&mut self, filename: &str) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
@@ -115,6 +138,11 @@ impl AdaBoost {
         Ok(())
     }
 
+    /// Trains the AdaBoost model.
+    /// This method iteratively updates the model based on the training data.
+    /// # Arguments
+    /// * `running`: An `Arc<AtomicBool>` to control the running state of the training process.
+    /// # Notes: The training process will stop if `running` is set to false.
     pub fn train(&mut self, running: Arc<AtomicBool>) {
         let num_features = self.features.len();
 
@@ -127,7 +155,7 @@ impl AdaBoost {
             let mut instance_weight_sum = 0.0;
             let mut positive_weight_sum = 0.0;
 
-            // errors集計と重み合計
+            // Calculate errors and sum of weights
             for i in 0..self.num_instances {
                 let d = self.instance_weights[i];
                 let label = self.labels[i];
@@ -142,7 +170,7 @@ impl AdaBoost {
                 }
             }
 
-            // 各反復内で局所的に初期化
+            // Find the best hypothesis
             let mut h_best = 0;
             let mut best_error_rate = positive_weight_sum / instance_weight_sum;
             for h in 1..num_features {
@@ -163,13 +191,13 @@ impl AdaBoost {
                 break;
             }
 
-            // ここでalphaとalpha_expを計算
+            // Calculate alpha (weight for the weak learner)
             let alpha =
                 0.5 * ((1.0 - best_error_rate).max(1e-10) / best_error_rate.max(1e-10)).ln();
             let alpha_exp = alpha.exp();
             self.model[h_best] += alpha;
 
-            // 重み更新
+            // Update model
             for i in 0..self.num_instances {
                 let label = self.labels[i];
                 let (start, end) = self.instances[i];
@@ -186,7 +214,7 @@ impl AdaBoost {
                 }
             }
 
-            // 重み正規化
+            // Normalize instance weights
             let sum_w: f64 = self.instance_weights.iter().sum();
             for d in &mut self.instance_weights {
                 *d /= sum_w;
@@ -195,6 +223,15 @@ impl AdaBoost {
         eprintln!();
     }
 
+    /// Saves the trained model to a file.
+    /// The model is saved in a format where each line contains a feature and its weight,
+    /// with the last line containing the bias term.
+    /// # Arguments
+    /// * `filename`: The path to the file where the model will be saved.
+    /// # Returns: A result indicating success or failure.
+    /// # Errors: Returns an error if the file cannot be created or written to.
+    /// # Notes: The bias term is calculated as the negative sum of the weights divided by 2.
+    /// The model is saved in a way that can be easily loaded later.
     pub fn save_model(&self, filename: &str) -> std::io::Result<()> {
         let mut file = File::create(filename)?;
         let mut bias = -self.model[0];
@@ -208,6 +245,15 @@ impl AdaBoost {
         Ok(())
     }
 
+    /// Loads a model from a file.
+    /// The file should contain lines with a feature and its weight,
+    /// with the last line containing the bias term.
+    /// # Arguments
+    /// * `filename`: The path to the file containing the model.
+    /// # Returns: A result indicating success or failure.
+    /// # Errors: Returns an error if the file cannot be opened or read.
+    /// # Notes: The model is loaded into the `features` and `model` vectors,
+    /// and the bias is calculated as the negative sum of the weights divided by 2.
     pub fn load_model(&mut self, filename: &str) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
@@ -234,10 +280,18 @@ impl AdaBoost {
         Ok(())
     }
 
+    /// Gets the bias term of the model.
+    /// The bias is calculated as the negative sum of the model weights divided by 2.
+    /// # Returns: The bias term as a `f64`.
+    /// # Notes: This is used to adjust the decision boundary of the model.
     pub fn get_bias(&self) -> f64 {
         -self.model.iter().sum::<f64>() / 2.0
     }
 
+    /// Displays the result of the model's performance on the training data.
+    /// It calculates accuracy, precision, recall, and confusion matrix.
+    /// # Notes: This method iterates through the instances, calculates the score for each,
+    /// and counts true positives, false positives, true negatives, and false negatives.
     pub fn show_result(&self) {
         let bias = self.get_bias();
         let mut pp = 0;
@@ -287,6 +341,13 @@ impl AdaBoost {
         );
     }
 
+    /// Adds a new instance to the model.
+    /// The instance is represented by a set of attributes and a label.
+    /// # Arguments
+    /// * `attributes`: A `HashSet<String>` containing the attributes of the instance.
+    /// * `label`: The label of the instance, represented as an `i8`.
+    /// # Notes: The attributes are sorted and added to the `features` vector if they do not already exist.
+    /// The instance is stored in `instances_buf`, and its start and end indices are recorded in `instances`.
     pub fn add_instance(&mut self, attributes: HashSet<String>, label: i8) {
         let start = self.instances_buf.len();
         let mut attrs: Vec<String> = attributes.into_iter().collect();
@@ -308,6 +369,11 @@ impl AdaBoost {
         self.num_instances += 1;
     }
 
+    /// Predicts the label for a given set of attributes.
+    /// # Arguments
+    /// * `attributes`: A `HashSet<String>` containing the attributes to predict.
+    /// # Returns: The predicted label as an `i8`, where 1 indicates a positive prediction and -1 indicates a negative prediction.
+    /// # Notes: The prediction is made by calculating the score based on the model weights for the given attributes.
     pub fn predict(&self, attributes: HashSet<String>) -> i8 {
         let mut score = 0.0;
         for attr in attributes {

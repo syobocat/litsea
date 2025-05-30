@@ -2,14 +2,18 @@ use crate::adaboost::AdaBoost;
 use regex::Regex;
 use std::collections::HashSet;
 
-/// 形態素セグメンター
+/// Segmenter struct for text segmentation using AdaBoost
 pub struct Segmenter {
     patterns: Vec<(Regex, &'static str)>,
     pub learner: AdaBoost,
 }
 
 impl Segmenter {
-    /// 新規作成（学習済みモデル or 空で初期化）
+    /// Creates a new Segmenter with the given AdaBoost learner or a default one
+    /// # Arguments
+    /// * `learner` - An optional AdaBoost instance. If None, a default AdaBoost instance is created.
+    /// # Returns
+    /// A new Segmenter instance with the specified or default AdaBoost learner.
     pub fn new(learner: Option<AdaBoost>) -> Self {
         let patterns = vec![
             (
@@ -28,7 +32,11 @@ impl Segmenter {
         }
     }
 
-    /// 文字タイプ判定
+    /// gets the type of a character based on predefined patterns
+    /// # Arguments
+    /// * `ch` - A string slice representing a single character.
+    /// # Returns
+    /// A static string representing the type of the character, such as "M", "H", "I", "K", "A", "N", or "O" (for others).
     pub fn get_type(&self, ch: &str) -> &'static str {
         for (pattern, s_type) in &self.patterns {
             if pattern.is_match(ch) {
@@ -38,7 +46,11 @@ impl Segmenter {
         "O"
     }
 
-    /// 特徴抽出だけする（writerでラベル＋特徴量を出力）
+    /// Adds a sentence to the segmenter with a custom writer function
+    /// # Arguments
+    /// * `sentence` - A string slice representing the sentence to be added.
+    /// * `writer` - A closure that takes a HashSet of attributes and a label (i8) as arguments.
+    ///   This closure is called for each word in the sentence, allowing custom handling of the attributes and label.
     pub fn add_sentence_with_writer<F>(&mut self, sentence: &str, mut writer: F)
     where
         F: FnMut(HashSet<String>, i8),
@@ -79,7 +91,12 @@ impl Segmenter {
         }
     }
 
-    /// コーパスから特徴量＋ラベルをAdaBoostに投入（学習用）
+    /// Adds a sentence to the segmenter for training
+    /// # Arguments
+    /// * `sentence` - A string slice representing the sentence to be added.
+    /// This method processes the sentence, extracts features, and adds them to the AdaBoost learner.
+    /// It constructs attributes based on the characters and their types, and uses the AdaBoost learner to add instances.
+    /// If the sentence is empty or too short, it does nothing.
     pub fn add_sentence(&mut self, sentence: &str) {
         if sentence.is_empty() {
             return;
@@ -118,7 +135,11 @@ impl Segmenter {
         }
     }
 
-    /// 推論
+    /// Parses a sentence and segments it into words
+    /// # Arguments
+    /// * `sentence` - A string slice representing the sentence to be parsed.
+    /// # Returns
+    /// A vector of strings, where each string is a segmented word from the sentence.
     pub fn parse(&self, sentence: &str) -> Vec<String> {
         if sentence.is_empty() {
             return Vec::new();
@@ -153,7 +174,14 @@ impl Segmenter {
         result
     }
 
-    /// 属性集合（特徴量セット）を生成
+    /// Gets the attributes for a specific index in the character and type arrays
+    /// # Arguments
+    /// * `i` - The index for which to get the attributes.
+    /// * `tags` - A slice of strings representing the tags for each character.
+    /// * `chars` - A slice of strings representing the characters in the sentence.
+    /// * `types` - A slice of strings representing the types of each character.
+    /// # Returns
+    /// A HashSet of strings representing the attributes for the specified index.
     fn get_attributes(
         &self,
         i: usize,
