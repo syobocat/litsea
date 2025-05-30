@@ -118,10 +118,6 @@ impl AdaBoost {
     pub fn train(&mut self, running: Arc<AtomicBool>) {
         let num_features = self.features.len();
 
-        let mut h_best = 0;
-        let mut best_error_rate = 0.5;
-        let mut alpha_exp = 1.0;
-
         for t in 0..self.num_iterations {
             if !running.load(Ordering::SeqCst) {
                 break;
@@ -146,9 +142,9 @@ impl AdaBoost {
                 }
             }
 
-            // best_feature選択
-            h_best = 0;
-            best_error_rate = positive_weight_sum / instance_weight_sum;
+            // 各反復内で局所的に初期化
+            let mut h_best = 0;
+            let mut best_error_rate = positive_weight_sum / instance_weight_sum;
             for h in 1..num_features {
                 let mut e = errors[h] + positive_weight_sum;
                 e /= instance_weight_sum;
@@ -158,7 +154,6 @@ impl AdaBoost {
                 }
             }
 
-            // 終了条件
             eprint!(
                 "\rIteration {} - margin: {}",
                 t,
@@ -168,12 +163,13 @@ impl AdaBoost {
                 break;
             }
 
+            // ここでalphaとalpha_expを計算
             let alpha =
                 0.5 * ((1.0 - best_error_rate).max(1e-10) / best_error_rate.max(1e-10)).ln();
-            alpha_exp = alpha.exp();
+            let alpha_exp = alpha.exp();
             self.model[h_best] += alpha;
 
-            // 重み更新（C++完全準拠、h_bestがそのインスタンスに含まれるかで分類）
+            // 重み更新
             for i in 0..self.num_instances {
                 let label = self.labels[i];
                 let (start, end) = self.instances[i];
