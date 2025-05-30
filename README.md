@@ -51,12 +51,12 @@ Litsea is implemented in Rust. To build it, follow these steps:
 
 Prepare a corpus with words separated by spaces in advance.
 
-corpus.txt
+- corpus.txt
 
-```text
-Litsea は TinySegmenter を 参考 に 開発 さ れ た 、 Rust で 実装 さ れ た 極めて コンパクト な 単語 分割 ソフトウェア です 。
+    ```text
+    Litsea は TinySegmenter を 参考 に 開発 さ れ た 、 Rust で 実装 さ れ た 極めて コンパクト な 単語 分割 ソフトウェア です 。
 
-```
+    ```
 
 Extract the information and features from the corpus:
 
