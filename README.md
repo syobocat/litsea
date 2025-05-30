@@ -54,7 +54,8 @@ Prepare a corpus with words separated by spaces in advance.
 corpus.txt
 
 ```text
-Litsea is a word segmentation software developed based on TinySegmenter, implemented in Rust, and extremely compact.
+Litsea は TinySegmenter を 参考 に 開発 さ れ た 、 Rust で 実装 さ れ た 極めて コンパクト な 単語 分割 ソフトウェア です 。
+
 ```
 
 Extract the information and features from the corpus:
