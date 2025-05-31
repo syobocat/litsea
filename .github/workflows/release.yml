@@ -1,0 +1,167 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  format:
+    name: Format
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+        toolchain: [stable]
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Run checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - name: Run format
+        run: cargo fmt --all -- --check
+
+  test:
+    name: Test
+    needs: [format]
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: macOS-latest
+            target: aarch64-apple-darwin
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+        toolchain: [stable]
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Run checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          target: ${{ matrix.platform.target }}
+          components: rustfmt, clippy
+
+      - name: Run test
+        run: cargo test --target "${{ matrix.platform.target }}" --all-features
+
+  release:
+    name: Build
+    needs: [test]
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: .zip
+            extension: ""
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            archive: .zip
+            extension: ""
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: .zip
+            extension: .exe
+        toolchain: [stable]
+        feature: [all]
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Run checkout
+        uses: actions/checkout@v4
+
+      - name: Cache ~/.cargo/registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache ~/.cargo/git
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache target
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          target: ${{ matrix.platform.target }}
+
+      - name: Add msbuild to PATH
+        if: matrix.platform.runner == 'windows-latest'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Compile
+        run: cargo build --release --features="${{ matrix.feature }},compress" --target=${{ matrix.platform.target }} --target-dir=target/${{ matrix.feature }}
+
+      - name: Create artifact for Linux
+        if: matrix.platform.runner == 'ubuntu-latest'
+        run: zip --junk-paths litsea-${{ matrix.feature }}-${{ matrix.platform.target }}-${{ github.ref_name }}${{ matrix.platform.archive }} target/${{ matrix.feature }}/${{ matrix.platform.target }}/release/litsea${{ matrix.platform.extension }}
+
+      - name: Create artifact for Windows
+        if: matrix.platform.runner == 'windows-latest'
+        run: powershell Compress-Archive -DestinationPath litsea-${{ matrix.feature }}-${{ matrix.platform.target }}-${{ github.ref_name }}${{ matrix.platform.archive }} -Path target/${{ matrix.feature }}/${{ matrix.platform.target }}/release/litsea${{ matrix.platform.extension }}
+
+      - name: Create artifact for OSX
+        if: matrix.platform.runner == 'macos-latest'
+        run: zip --junk-paths litsea-${{ matrix.feature }}-${{ matrix.platform.target }}-${{ github.ref_name }}${{ matrix.platform.archive }} target/${{ matrix.feature }}/${{ matrix.platform.target }}/release/litsea${{ matrix.platform.extension }}
+
+      - name: Upload artifact
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: litsea-${{ matrix.feature }}-${{ matrix.platform.target }}-${{ github.ref_name }}${{ matrix.platform.archive }}
+          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  publish-crates:
+    name: Publish crate
+    needs: [release]
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+        toolchain: [stable]
+    runs-on: ${{ matrix.platform.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - name: Publish litsea
+        run: |
+          LITSEA_VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name=="litsea") | .version')
+          LITSEA_VERSIONS=$(curl -s -XGET https://crates.io/api/v1/crates/litsea | jq -r 'select(.versions != null) | .versions[].num')
+          if echo ${LITSEA_VERSIONS} | grep ${LITSEA_VERSION} >/dev/null; then
+            echo "litsea ${LITSEA_VERSION} has already published"
+          else
+            cargo publish --token ${{ secrets.CRATES_TOKEN }}
+          fi
