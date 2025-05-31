@@ -6,6 +6,9 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: write
+
 jobs:
   format:
     name: Format
@@ -36,7 +39,7 @@ jobs:
         platform:
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - runner: macOS-latest
+          - runner: macos-latest
             target: aarch64-apple-darwin
           - runner: windows-latest
             target: x86_64-pc-windows-msvc
@@ -161,7 +164,7 @@ jobs:
           LITSEA_VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name=="litsea") | .version')
           LITSEA_VERSIONS=$(curl -s -XGET https://crates.io/api/v1/crates/litsea | jq -r 'select(.versions != null) | .versions[].num')
           if echo ${LITSEA_VERSIONS} | grep ${LITSEA_VERSION} >/dev/null; then
-            echo "litsea ${LITSEA_VERSION} has already published"
+            echo "litsea ${LITSEA_VERSION} has already been published"
           else
             cargo publish --token ${{ secrets.CRATES_TOKEN }}
           fi
