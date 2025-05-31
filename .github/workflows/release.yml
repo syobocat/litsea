@@ -75,7 +75,7 @@ jobs:
             archive: .zip
             extension: .exe
         toolchain: [stable]
-        feature: [all]
+        feature: [default]
     runs-on: ${{ matrix.platform.runner }}
     steps:
       - name: Run checkout
