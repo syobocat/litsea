@@ -1,15 +1,16 @@
-use std::collections::HashSet;
 use std::error::Error;
-use std::fs::File;
 use std::io::{self, BufRead, Write};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use clap::{Args, Parser, Subcommand};
 
 use litsea::adaboost::AdaBoost;
+use litsea::extractor::Extractor;
 use litsea::get_version;
 use litsea::segmenter::Segmenter;
+use litsea::trainer::Trainer;
 
 #[derive(Debug, Args)]
 #[clap(
@@ -18,8 +19,8 @@ use litsea::segmenter::Segmenter;
     version = get_version(),
 )]
 struct ExtractArgs {
-    corpus_file: String,
-    features_file: String,
+    corpus_file: PathBuf,
+    features_file: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -38,10 +39,10 @@ struct TrainArgs {
     num_threads: usize,
 
     #[arg(short = 'm', long)]
-    load_model: Option<String>,
+    load_model_file: Option<PathBuf>,
 
-    instances_file: String,
-    model_file: String,
+    features_file: PathBuf,
+    model_file: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -50,7 +51,7 @@ struct TrainArgs {
     version = get_version(),
 )]
 struct SegmentArgs {
-    model_file: String,
+    model_file: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]
@@ -73,44 +74,11 @@ struct CommandArgs {
 }
 
 fn extract(args: ExtractArgs) -> Result<(), Box<dyn Error>> {
-    // Create a file to write the features
-    let features_file = File::create(&args.features_file)?;
-    let mut features = io::BufWriter::new(features_file);
+    let mut extractor = Extractor::new();
 
-    // Initialize the segmenter
-    // No model is loaded, so it will use the default feature extraction
-    let mut segmenter = Segmenter::new(None);
+    extractor.extract(args.corpus_file.as_path(), args.features_file.as_path())?;
 
-    // learner function to write features
-    // This function will be called for each word in the input sentences
-    // It takes a set of attributes and a label, and writes them to stdout
-    let mut learner = |attributes: HashSet<String>, label: i8| {
-        let mut attrs: Vec<String> = attributes.into_iter().collect();
-        attrs.sort();
-        let mut line = vec![label.to_string()];
-        line.extend(attrs);
-        writeln!(features, "{}", line.join("\t")).expect("Failed to write features");
-    };
-
-    // Read sentences from stdin
-    // Each line is treated as a separate sentence
-    let corpus_file = File::open(&args.corpus_file)?;
-    let corpus = io::BufReader::new(corpus_file);
-
-    for line in corpus.lines() {
-        match line {
-            Ok(line) => {
-                let line = line.trim();
-                if !line.is_empty() {
-                    segmenter.add_sentence_with_writer(line, &mut learner);
-                }
-            }
-            Err(err) => {
-                eprintln!("Error reading input: {}", err);
-            }
-        }
-    }
-
+    println!("Feature extraction completed successfully.");
     Ok(())
 }
 
@@ -127,61 +95,58 @@ fn train(args: TrainArgs) -> Result<(), Box<dyn Error>> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    let mut boost = AdaBoost::new(args.threshold, args.num_iterations, args.num_threads);
+    let mut trainer = Trainer::new(
+        args.threshold,
+        args.num_iterations,
+        args.num_threads,
+        args.features_file.as_path(),
+    );
 
-    if let Some(model_path) = args.load_model.as_ref() {
-        boost.load_model(model_path).unwrap();
+    if let Some(model_path) = &args.load_model_file {
+        trainer.load_model(model_path.as_path())?;
     }
 
-    boost.initialize_features(&args.instances_file).unwrap();
-    boost.initialize_instances(&args.instances_file).unwrap();
+    trainer.train(running, args.model_file.as_path())?;
 
-    boost.train(running.clone());
-    boost.save_model(&args.model_file).unwrap();
-    boost.show_result();
-
+    println!("Training completed successfully.");
     Ok(())
 }
 
 fn segment(args: SegmentArgs) -> Result<(), Box<dyn Error>> {
-    let model_path = &args.model_file;
+    let mut leaner = AdaBoost::new(0.01, 100, 1);
+    leaner.load_model(args.model_file.as_path())?;
 
-    let mut model = AdaBoost::new(0.01, 100, 1);
-    if let Err(e) = model.load_model(model_path) {
-        eprintln!("Failed to load model: {}", e);
-        std::process::exit(1);
-    }
-
-    let segmenter = Segmenter::new(Some(model));
+    let segmenter = Segmenter::new(Some(leaner));
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut writer = io::BufWriter::new(stdout.lock());
 
     for line in stdin.lock().lines() {
-        match line {
-            Ok(line) => {
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
-                }
-                let tokens = segmenter.parse(line);
-                writeln!(writer, "{}", tokens.join(" ")).expect("write failed");
-            }
-            Err(err) => {
-                eprintln!("Error reading input: {}", err);
-            }
+        let line = line?;
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
         }
+        let tokens = segmenter.parse(line);
+        writeln!(writer, "{}", tokens.join(" "))?;
     }
 
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = CommandArgs::parse();
 
     match args.command {
         Commands::Extract(args) => extract(args),
         Commands::Train(args) => train(args),
         Commands::Segment(args) => segment(args),
+    }
+}
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
     }
 }
