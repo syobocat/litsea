@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -53,7 +54,7 @@ impl AdaBoost {
     /// * `filename`: The path to the file containing the features.
     /// # Returns: A result indicating success or failure.
     /// # Errors: Returns an error if the file cannot be opened or read.
-    pub fn initialize_features(&mut self, filename: &str) -> std::io::Result<()> {
+    pub fn initialize_features(&mut self, filename: &Path) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
         let mut map = BTreeMap::new(); // preserve order
@@ -100,7 +101,7 @@ impl AdaBoost {
     /// * `filename`: The path to the file containing the instances.
     /// # Returns: A result indicating success or failure.
     /// # Errors: Returns an error if the file cannot be opened or read.
-    pub fn initialize_instances(&mut self, filename: &str) -> std::io::Result<()> {
+    pub fn initialize_instances(&mut self, filename: &Path) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
         let bias = self.get_bias();
@@ -173,7 +174,7 @@ impl AdaBoost {
             // Find the best hypothesis
             let mut h_best = 0;
             let mut best_error_rate = positive_weight_sum / instance_weight_sum;
-            for h in 1..num_features {
+            for (h, _) in errors.iter().enumerate().take(num_features).skip(1) {
                 let mut e = errors[h] + positive_weight_sum;
                 e /= instance_weight_sum;
                 if (0.5 - e).abs() > (0.5 - best_error_rate).abs() {
@@ -232,7 +233,7 @@ impl AdaBoost {
     /// # Errors: Returns an error if the file cannot be created or written to.
     /// # Notes: The bias term is calculated as the negative sum of the weights divided by 2.
     /// The model is saved in a way that can be easily loaded later.
-    pub fn save_model(&self, filename: &str) -> std::io::Result<()> {
+    pub fn save_model(&self, filename: &Path) -> std::io::Result<()> {
         let mut file = File::create(filename)?;
         let mut bias = -self.model[0];
         for (h, &w) in self.features.iter().zip(self.model.iter()).skip(1) {
@@ -254,7 +255,7 @@ impl AdaBoost {
     /// # Errors: Returns an error if the file cannot be opened or read.
     /// # Notes: The model is loaded into the `features` and `model` vectors,
     /// and the bias is calculated as the negative sum of the weights divided by 2.
-    pub fn load_model(&mut self, filename: &str) -> std::io::Result<()> {
+    pub fn load_model(&mut self, filename: &Path) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
         let mut m: HashMap<String, f64> = HashMap::new();
@@ -313,12 +314,10 @@ impl AdaBoost {
                 } else {
                     pn += 1
                 }
+            } else if label > 0 {
+                np += 1
             } else {
-                if label > 0 {
-                    np += 1
-                } else {
-                    nn += 1
-                }
+                nn += 1
             }
         }
 
