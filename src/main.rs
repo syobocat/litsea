@@ -12,6 +12,7 @@ use litsea::get_version;
 use litsea::segmenter::Segmenter;
 use litsea::trainer::Trainer;
 
+/// Arguments for the extract command.
 #[derive(Debug, Args)]
 #[clap(
     author,
@@ -23,6 +24,7 @@ struct ExtractArgs {
     features_file: PathBuf,
 }
 
+/// Arguments for the train command.
 #[derive(Debug, Args)]
 #[clap(author,
     about = "Train a segmenter",
@@ -45,6 +47,7 @@ struct TrainArgs {
     model_file: PathBuf,
 }
 
+/// Arguments for the segment command.
 #[derive(Debug, Args)]
 #[clap(author,
     about = "Segment a sentence",
@@ -54,6 +57,7 @@ struct SegmentArgs {
     model_file: PathBuf,
 }
 
+/// Subcommands for lietsea CLI.
 #[derive(Debug, Subcommand)]
 enum Commands {
     Extract(ExtractArgs),
@@ -61,6 +65,7 @@ enum Commands {
     Segment(SegmentArgs),
 }
 
+/// Arguments for the litsea command.
 #[derive(Debug, Parser)]
 #[clap(
     name = "litsea",
@@ -73,6 +78,15 @@ struct CommandArgs {
     command: Commands,
 }
 
+/// Extract features from a corpus file and write them to a specified output file.
+/// This function reads sentences from the corpus file, segments them into words,
+/// and writes the extracted features to the output file.
+///
+/// # Arguments
+/// * `args` - The arguments for the extract command [`ExtractArgs`].
+///
+/// # Returns
+/// Returns a Result indicating success or failure.
 fn extract(args: ExtractArgs) -> Result<(), Box<dyn Error>> {
     let mut extractor = Extractor::new();
 
@@ -82,6 +96,15 @@ fn extract(args: ExtractArgs) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Train a segmenter using the provided arguments.
+/// This function initializes a Trainer with the specified parameters,
+/// loads a model if specified, and trains the model using the features file.
+///
+/// # Arguments
+/// * `args` - The arguments for the train command [`TrainArgs`].
+///
+/// # Returns
+/// Returns a Result indicating success or failure.
 fn train(args: TrainArgs) -> Result<(), Box<dyn Error>> {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -112,6 +135,16 @@ fn train(args: TrainArgs) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// Segment a sentence using the trained model.
+/// This function loads the AdaBoost model from the specified file,
+/// reads sentences from standard input, segments them into words,
+/// and writes the segmented sentences to standard output.
+///
+/// # Arguments
+/// * `args` - The arguments for the segment command [`SegmentArgs`].
+///
+/// # Returns
+/// Returns a Result indicating success or failure.
 fn segment(args: SegmentArgs) -> Result<(), Box<dyn Error>> {
     let mut leaner = AdaBoost::new(0.01, 100, 1);
     leaner.load_model(args.model_file.as_path())?;
