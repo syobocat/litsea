@@ -19,15 +19,38 @@ impl Segmenter {
     /// A new Segmenter instance with the specified or default AdaBoost learner.
     pub fn new(learner: Option<AdaBoost>) -> Self {
         let patterns = vec![
-            (
-                Regex::new(r"[一二三四五六七八九十百千万億兆]").unwrap(),
-                "M",
-            ),
+            // Japanese Kanji numbers
+            (Regex::new(r"[一二三四五六七八九十百千万億兆]").unwrap(), "M"),
+            // Japanese Kanji
             (Regex::new(r"[一-龠々〆ヵヶ]").unwrap(), "H"),
+            // Japanese Hiragana
             (Regex::new(r"[ぁ-ん]").unwrap(), "I"),
+            // Japanese Katakana
             (Regex::new(r"[ァ-ヴーｱ-ﾝﾞｰ]").unwrap(), "K"),
+            // Latin alphabet (ASCII + full-width)
             (Regex::new(r"[a-zA-Zａ-ｚＡ-Ｚ]").unwrap(), "A"),
+            // Numbers (ASCII + full-width)
             (Regex::new(r"[0-9０-９]").unwrap(), "N"),
+            // // Japanese Kanji numbers
+            // (Regex::new(r"[一二三四五六七八九十百千万億兆]").unwrap(), "M"),
+            // // Japanese Kanji
+            // (Regex::new(r"[一-龠々〆ヵヶ]").unwrap(), "J"),
+            // // Chinese Kanji (CJK Unified Ideographs)
+            // (Regex::new(r"[㐀-䶵一-鿿]").unwrap(), "M"),
+            // // Hangul (Korean)
+            // (Regex::new(r"[가-힣]").unwrap(), "K"),
+            // // Hiragana (Japanese)
+            // (Regex::new(r"[ぁ-ん]").unwrap(), "I"),
+            // // Katakana (Japanese)
+            // (Regex::new(r"[ァ-ヴーｱ-ﾝﾞﾟ]").unwrap(), "K"),
+            // // Latin alphabet (ASCII + full-width)
+            // (Regex::new(r"[a-zA-Zａ-ｚＡ-Ｚ]").unwrap(), "A"),
+            // // Numbers (ASCII + full-width)
+            // (Regex::new(r"[0-9０-９]").unwrap(), "N"),
+            // // Vietnamese Extended Latin
+            // (Regex::new(r"[À-ſ]").unwrap(), "V"),
+            // // Thai script
+            // (Regex::new(r"[ก-๛]").unwrap(), "T"),
         ];
 
         Segmenter {
@@ -279,9 +302,8 @@ mod tests {
 
     #[test]
     fn test_segmenter() {
-        let model_file = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("./resources")
-            .join("RWCP.model");
+        let model_file =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("./resources").join("RWCP.model");
 
         let mut learner = AdaBoost::new(0.01, 100, 1);
         learner.load_model(model_file.as_path()).unwrap();
