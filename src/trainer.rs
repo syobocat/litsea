@@ -4,11 +4,28 @@ use std::sync::Arc;
 
 use crate::adaboost::AdaBoost;
 
+/// Trainer struct for managing the AdaBoost training process.
+/// It initializes the AdaBoost learner with the specified parameters,
+/// loads the model from a file, and provides methods to train the model
+/// and save the trained model.
 pub struct Trainer {
     learner: AdaBoost,
 }
 
 impl Trainer {
+    /// Creates a new instance of [`Trainer`].
+    ///
+    /// # Arguments
+    /// * `threshold` - The threshold for the AdaBoost algorithm.
+    /// * `num_iterations` - The number of iterations for the training.
+    /// * `num_threads` - The number of threads to use for training.
+    /// * `features_path` - The path to the features file.
+    ///
+    /// # Returns
+    /// Returns a new instance of `Trainer`.
+    ///
+    /// # Errors
+    /// Returns an error if the features or instances cannot be initialized.
     pub fn new(
         threshold: f64,
         num_iterations: usize,
@@ -27,11 +44,32 @@ impl Trainer {
         Trainer { learner }
     }
 
+    /// Load Model from a file
+    ///
+    /// # Arguments
+    /// * `model_path` - The path to the model file to load.    
+    ///
+    /// # Returns
+    /// Returns a Result indicating success or failure.
+    ///
+    /// # Errors
+    /// Returns an error if the model cannot be loaded.
     pub fn load_model(&mut self, model_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         // Load the model from the specified file
         Ok(self.learner.load_model(model_path)?)
     }
 
+    /// Train the AdaBoost model.
+    ///
+    /// # Arguments
+    /// * `running` - An Arc<AtomicBool> to control the running state of the training process.
+    /// * `model_path` - The path to save the trained model.
+    ///
+    /// # Returns
+    /// Returns a Result indicating success or failure.
+    ///
+    /// # Errors
+    /// Returns an error if the training fails or if the model cannot be saved.
     pub fn train(
         &mut self,
         running: Arc<AtomicBool>,

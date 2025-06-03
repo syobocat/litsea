@@ -6,23 +6,42 @@ use std::path::Path;
 
 use crate::segmenter::Segmenter;
 
+/// Extractor struct for processing text data and extracting features.
+/// It reads sentences from a corpus file, segments them into words,
+/// and writes the extracted features to a specified output file.
 pub struct Extractor {
     segmenter: Segmenter,
 }
 
 impl Default for Extractor {
+    /// Creates a new instance of [`Extractor`] with default settings.
+    ///
+    /// # Returns
+    /// Returns a new instance of `Extractor`.
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl Extractor {
+    /// Creates a new instance of [`Extractor`].
+    ///
+    /// # Returns
+    /// Returns a new instance of `Extractor` with a new `Segmenter`.
     pub fn new() -> Self {
         Extractor {
             segmenter: Segmenter::new(None),
         }
     }
 
+    /// Extracts features from a corpus file and writes them to a specified output file.
+    ///
+    /// # Arguments
+    /// * `corpus_path` - The path to the input corpus file containing sentences.
+    /// * `features_path` - The path to the output file where extracted features will be written.
+    ///
+    /// # Returns
+    /// Returns a Result indicating success or failure.
     pub fn extract(
         &mut self,
         corpus_path: &Path,

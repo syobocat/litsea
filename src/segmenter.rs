@@ -3,13 +3,14 @@ use regex::Regex;
 use std::collections::HashSet;
 
 /// Segmenter struct for text segmentation using AdaBoost
+/// It uses predefined patterns to classify characters and segments sentences into words.
 pub struct Segmenter {
     patterns: Vec<(Regex, &'static str)>,
     pub learner: AdaBoost,
 }
 
 impl Segmenter {
-    /// Creates a new Segmenter with the given AdaBoost learner or a default one
+    /// creates a new instance of [`Segmenter`].
     ///
     /// # Arguments
     /// * `learner` - An optional AdaBoost instance. If None, a default AdaBoost instance is created.
@@ -55,7 +56,10 @@ impl Segmenter {
     /// # Arguments
     /// * `sentence` - A string slice representing the sentence to be added.
     /// * `writer` - A closure that takes a `HashSet<String>` of attributes and a label (`i8`) as arguments.
-    ///   This closure is called for each word in the sentence, allowing custom handling of the attributes and label.
+    ///
+    /// This closure is called for each instance created from the sentence.
+    /// This method processes the sentence, extracts features, and calls the writer function for each instance.
+    /// It constructs attributes based on the characters and their types, and uses the AdaBoost learner to add instances.
     pub fn add_sentence_with_writer<F>(&mut self, sentence: &str, mut writer: F)
     where
         F: FnMut(HashSet<String>, i8),
@@ -103,7 +107,7 @@ impl Segmenter {
     ///
     /// This method processes the sentence, extracts features, and adds them to the AdaBoost learner.
     /// It constructs attributes based on the characters and their types, and uses the AdaBoost learner to add instances.
-    ///   If the sentence is empty or too short, it does nothing.
+    /// If the sentence is empty or too short, it does nothing.
     pub fn add_sentence(&mut self, sentence: &str) {
         if sentence.is_empty() {
             return;

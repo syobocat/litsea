@@ -64,6 +64,12 @@ Extract the information and features from the corpus:
 ./target/release/litsea extract ./resources/corpus.txt ./resources/features.txt
 ```
 
+The output from the `extract` command is similar to:
+
+```text
+Feature extraction completed successfully.
+```
+
 Train the features output by the above command using AdaBoost. Training stops if the new weak classifier’s accuracy falls below 0.001 or after 10,000 iterations.
 
 ```sh
@@ -81,6 +87,7 @@ Accuracy: 100.00% (61 / 61)
 Precision: 100.00% (24 / 24)
 Recall: 100.00% (24 / 24)
 Confusion Matrix: TP: 24, FP: 0, FN: 0, TN: 37
+Training completed successfully.
 ```
 
 ## How to segment sentences into words
