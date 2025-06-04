@@ -80,6 +80,15 @@ impl AdaBoost {
     /// # Returns: A result indicating success or failure.
     ///
     /// # Errors: Returns an error if the file cannot be opened or read.
+    ///
+    /// This method reads the file line by line, extracts features,
+    /// and initializes the model with the features and their corresponding weights.
+    /// It also counts the number of instances and reserves space in the vectors for efficient memory usage.
+    ///
+    /// # Note: The features are stored in a `BTreeMap` to preserve the order of insertion.
+    /// The last feature is an empty string, which is used as a bias term.
+    /// The model is initialized with zeros for each feature.
+    /// The number of instances is counted to ensure that the model can handle the data efficiently.
     pub fn initialize_features(&mut self, filename: &Path) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
@@ -128,6 +137,12 @@ impl AdaBoost {
     /// # Returns: A result indicating success or failure.
     ///
     /// # Errors: Returns an error if the file cannot be opened or read.
+    ///
+    /// This method reads the file line by line, extracts the label and features,
+    /// and initializes the instances with their corresponding weights.
+    /// It calculates the score for each instance based on the features and updates the model accordingly.
+    /// The instance weights are initialized based on the label and score.
+    /// It also prints the progress of loading instances to the standard error output.
     pub fn initialize_instances(&mut self, filename: &Path) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
@@ -175,6 +190,19 @@ impl AdaBoost {
     ///
     /// # Arguments
     /// * `running`: An `Arc<AtomicBool>` to control the running state of the training process.
+    ///
+    /// # Returns: This method does not return a value.
+    ///
+    /// # Errors: This method does not return an error, but it will stop training if `running` is set to false.
+    ///
+    /// This method performs the following steps:
+    /// 1. Initializes the error vector and sums of weights.
+    /// 2. Iterates through the training data for a specified number of iterations.
+    /// 3. For each instance, calculates the error based on the current model.
+    /// 4. Finds the best hypothesis based on the error rates.
+    /// 5. Updates the model with the best hypothesis and calculates the alpha value.
+    /// 6. Updates the instance weights based on the predictions.
+    /// 7. Normalizes the instance weights to ensure they sum to 1.
     pub fn train(&mut self, running: Arc<AtomicBool>) {
         let num_features = self.features.len();
 
@@ -257,6 +285,10 @@ impl AdaBoost {
     /// # Returns: A result indicating success or failure.
     ///
     /// # Errors: Returns an error if the file cannot be created or written to.
+    ///
+    /// This method writes the model to a file in a tab-separated format,
+    /// where each line contains a feature and its corresponding weight.
+    /// The last line contains the bias term, which is calculated as the negative sum of the model weights divided by 2.
     pub fn save_model(&self, filename: &Path) -> std::io::Result<()> {
         let mut file = File::create(filename)?;
         let mut bias = -self.model[0];

@@ -3,7 +3,7 @@ use regex::Regex;
 use std::collections::HashSet;
 
 /// Segmenter struct for text segmentation using AdaBoost
-/// It uses predefined patterns to classify characters and segments sentences into words.
+/// It uses predefined patterns to classify characters and segment sentences into words.
 pub struct Segmenter {
     patterns: Vec<(Regex, &'static str)>,
     pub learner: AdaBoost,
@@ -17,6 +17,21 @@ impl Segmenter {
     ///
     /// # Returns
     /// A new Segmenter instance with the specified or default AdaBoost learner.
+    ///
+    /// # Note
+    /// The patterns are predefined to match various character types, including numbers, Japanese scripts,
+    /// Korean Hangul, Thai script, Kanji, and Latin characters. Each pattern is associated with a label
+    /// that indicates the type of character it matches, such as "N" for numbers, "I" for Hiragana, "K" for Katakana,
+    /// "G" for Hangul, "T" for Thai, "H" for Kanji, "Z" for CJK Unified Ideographs, "E" for Extended Latin,
+    /// and "A" for ASCII/Full-width Latin characters.
+    ///
+    /// # Example
+    /// ```
+    /// use litsea::segmenter::Segmenter;
+    ///
+    /// let segmenter = Segmenter::new(None);
+    /// ```
+    /// This will create a new Segmenter instance with a default AdaBoost learner.
     pub fn new(learner: Option<AdaBoost>) -> Self {
         let patterns = vec![
             // Numbers
@@ -53,9 +68,22 @@ impl Segmenter {
     /// * `ch` - A string slice representing a single character.
     ///
     /// # Returns
-    /// A string slice representing the type of the character, such as "N" for number,
-    /// "I" for Hiragana, "K" for Katakana, etc. If the character does not match any pattern,
-    /// it returns "O" for Other.
+    /// A string slice representing the type of the character, such as "N" for numbers, "I" for Hiragana,
+    /// "K" for Katakana, "G" for Hangul, "T" for Thai, "H" for Kanji, "Z" for CJK Unified Ideographs,
+    /// "E" for Extended Latin, and "A" for ASCII/Full-width Latin characters.
+    ///
+    /// # Note
+    /// If the character does not match any of the predefined patterns, it returns "O" for Other.
+    ///
+    /// # Example
+    /// ```
+    /// use litsea::segmenter::Segmenter;
+    ///
+    /// let segmenter = Segmenter::new(None);
+    /// let char_type = segmenter.get_type("あ");
+    /// assert_eq!(char_type, "I"); // Hiragana
+    /// ```
+    /// This will return "I" for Hiragana characters.
     pub fn get_type(&self, ch: &str) -> &str {
         for (pattern, label) in &self.patterns {
             if pattern.is_match(ch) {
@@ -65,27 +93,43 @@ impl Segmenter {
         "O" // Other
     }
 
-    /// Adds a sentence to the segmenter with a custom writer function.
+    /// Adds a corpus to the segmenter with a custom writer function.
     ///
     /// # Arguments
-    /// * `sentence` - A string slice representing the sentence to be added.
-    /// * `writer` - A closure that takes a `HashSet<String>` of attributes and a label (`i8`) as arguments.
+    /// * `corpus` - A string slice representing the corpus to be added.
+    /// * `writer` - A closure that takes a HashSet of attributes and a label (i8) and writes them.
     ///
-    /// This closure is called for each instance created from the sentence.
-    /// This method processes the sentence, extracts features, and calls the writer function for each instance.
-    /// It constructs attributes based on the characters and their types, and uses the AdaBoost learner to add instances.
-    pub fn add_sentence_with_writer<F>(&mut self, sentence: &str, mut writer: F)
+    /// # Note
+    /// The writer function is called for each word in the corpus, allowing for custom handling of the attributes and labels.
+    ///
+    /// # Example
+    /// ```
+    /// use litsea::segmenter::Segmenter;
+    ///
+    /// let mut segmenter = Segmenter::new(None);
+    /// segmenter.add_corpus_with_writer("テスト です", |attrs, label| {
+    ///    println!("Attributes: {:?}, Label: {}", attrs, label);
+    /// });
+    /// ```
+    ///
+    /// This will process the corpus and call the writer function for each word, passing the attributes and label.
+    ///
+    /// # Returns
+    /// Returns nothing.
+    ///
+    /// This method is useful for training the segmenter with a corpus of sentences, allowing it to learn how to segment text into words.
+    pub fn add_corpus_with_writer<F>(&mut self, corpus: &str, mut writer: F)
     where
         F: FnMut(HashSet<String>, i8),
     {
-        if sentence.is_empty() {
+        if corpus.is_empty() {
             return;
         }
         let mut tags = vec!["U".to_string(); 3];
         let mut chars = vec!["B3".to_string(), "B2".to_string(), "B1".to_string()];
         let mut types = vec!["O".to_string(); 3];
 
-        for word in sentence.split(' ') {
+        for word in corpus.split(' ') {
             if word.is_empty() {
                 continue;
             }
@@ -114,23 +158,40 @@ impl Segmenter {
         }
     }
 
-    /// Adds a sentence to the segmenter for training.
+    /// Adds a corpus to the segmenter.
     ///
     /// # Arguments
-    /// * `sentence` - A string slice representing the sentence to be added.
+    /// * `corpus` - A string slice representing the corpus to be added.
     ///
-    /// This method processes the sentence, extracts features, and adds them to the AdaBoost learner.
-    /// It constructs attributes based on the characters and their types, and uses the AdaBoost learner to add instances.
-    /// If the sentence is empty or too short, it does nothing.
-    pub fn add_sentence(&mut self, sentence: &str) {
-        if sentence.is_empty() {
+    /// This method processes the corpus, extracts features, and adds instances to the AdaBoost learner.
+    /// If the corpus is empty, it does nothing.
+    /// # Note
+    /// The method constructs attributes based on the characters and their types, and uses the AdaBoost learner to add instances.
+    /// If the corpus is too short or does not contain enough characters, it will not add any instances.
+    /// The attributes are constructed based on the surrounding characters and their types, allowing for rich feature extraction.
+    ///
+    /// # Example
+    /// ```
+    /// use litsea::segmenter::Segmenter;
+    ///
+    /// let mut segmenter = Segmenter::new(None);
+    /// segmenter.add_corpus("テスト です");
+    /// ```
+    /// This will process the corpus and add instances to the segmenter.
+    ///
+    /// # Returns
+    /// Returns nothing.
+    ///
+    /// This method is useful for training the segmenter with a corpus of sentences, allowing it to learn how to segment text into words.
+    pub fn add_corpus(&mut self, corpus: &str) {
+        if corpus.is_empty() {
             return;
         }
         let mut tags = vec!["U".to_string(); 3];
         let mut chars = vec!["B3".to_string(), "B2".to_string(), "B1".to_string()];
         let mut types = vec!["O".to_string(); 3];
 
-        for word in sentence.split(' ') {
+        for word in corpus.split(' ') {
             if word.is_empty() {
                 continue;
             }
@@ -167,6 +228,29 @@ impl Segmenter {
     ///
     /// # Returns
     /// A vector of strings, where each string is a segmented word from the sentence.
+    ///
+    /// # Note
+    /// The method processes the sentence character by character, using the AdaBoost learner to predict whether a character is the beginning of a new word or not.
+    /// It constructs attributes based on the surrounding characters and their types, allowing for accurate segmentation.
+    /// If the sentence is empty, it returns an empty vector.
+    ///
+    /// # Example
+    /// ```
+    /// use std::path::PathBuf;
+    ///
+    /// use litsea::segmenter::Segmenter;
+    /// use litsea::adaboost::AdaBoost;
+    ///
+    /// let model_file =
+    ///     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("./resources").join("RWCP.model");
+    /// let mut learner = AdaBoost::new(0.01, 100, 1);
+    /// learner.load_model(model_file.as_path()).unwrap();
+    ///
+    /// let segmenter = Segmenter::new(Some(learner));
+    /// let result = segmenter.segment("これはテストです。");
+    /// assert_eq!(result, vec!["これ", "は", "テスト", "です", "。"]);
+    /// ```
+    /// This will segment the sentence into words and return them as a vector of strings.
     pub fn segment(&self, sentence: &str) -> Vec<String> {
         if sentence.is_empty() {
             return Vec::new();
@@ -211,6 +295,12 @@ impl Segmenter {
     ///
     /// # Returns
     /// A HashSet of strings representing the attributes for the specified index.
+    ///
+    /// # Note
+    /// The attributes are constructed based on the surrounding characters and their types, allowing for rich feature extraction.
+    /// This method is used internally by the segmenter to create features for each character in the sentence.
+    ///
+    /// This will return a set of attributes for the character at index 4, which is "い" in this case.
     fn get_attributes(
         &self,
         i: usize,
@@ -291,12 +381,23 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test_add_sentence_with_writer() {
+    fn test_get_type() {
+        let segmenter = Segmenter::new(None);
+
+        assert_eq!(segmenter.get_type("あ"), "I"); // Hiragana
+        assert_eq!(segmenter.get_type("漢"), "H"); // Kanji
+        assert_eq!(segmenter.get_type("A"), "A"); // Latin
+        assert_eq!(segmenter.get_type("1"), "N"); // Digit
+        assert_eq!(segmenter.get_type("@"), "O"); // Not matching any pattern
+    }
+
+    #[test]
+    fn test_add_corpus_with_writer() {
         let mut segmenter = Segmenter::new(None);
         let sentence = "テスト です";
         let mut collected = Vec::new();
 
-        segmenter.add_sentence_with_writer(sentence, |attrs, label| {
+        segmenter.add_corpus_with_writer(sentence, |attrs, label| {
             collected.push((attrs, label));
         });
 
@@ -315,14 +416,15 @@ mod tests {
     }
 
     #[test]
-    fn test_add_sentence_empty() {
+    fn test_add_corpus() {
         let mut segmenter = Segmenter::new(None);
-        segmenter.add_sentence("");
-        // Should not panic or add anything
+        let sentence = "テスト です";
+        segmenter.add_corpus(sentence);
+        // Should not panic or add anything, just a smoke test
     }
 
     #[test]
-    fn test_segmenter() {
+    fn test_segment() {
         let sentence = "これはテストです。";
 
         let model_file =
@@ -330,9 +432,8 @@ mod tests {
         let mut learner = AdaBoost::new(0.01, 100, 1);
         learner.load_model(model_file.as_path()).unwrap();
 
-        let mut segmenter = Segmenter::new(Some(learner));
+        let segmenter = Segmenter::new(Some(learner));
 
-        segmenter.add_sentence(sentence);
         let result = segmenter.segment(sentence);
 
         assert!(!result.is_empty());
@@ -345,6 +446,13 @@ mod tests {
     }
 
     #[test]
+    fn test_add_sentence_empty() {
+        let mut segmenter = Segmenter::new(None);
+        segmenter.add_corpus("");
+        // Should not panic or add anything
+    }
+
+    #[test]
     fn test_segment_empty_sentence() {
         let segmenter = Segmenter::new(None);
         let result = segmenter.segment("");
@@ -352,18 +460,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_type() {
-        let segmenter = Segmenter::new(None);
-
-        assert_eq!(segmenter.get_type("あ"), "I"); // Hiragana
-        assert_eq!(segmenter.get_type("漢"), "H"); // Kanji
-        assert_eq!(segmenter.get_type("A"), "A"); // Latin
-        assert_eq!(segmenter.get_type("1"), "N"); // Digit
-        assert_eq!(segmenter.get_type("@"), "O"); // Not matching any pattern
-    }
-
-    #[test]
-    fn test_get_attributes_content() {
+    fn test_get_attributes() {
         let segmenter = Segmenter::new(None);
 
         let tags = vec!["U".to_string(); 7];

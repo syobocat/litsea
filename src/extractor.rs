@@ -72,7 +72,7 @@ impl Extractor {
                 Ok(line) => {
                     let line = line.trim();
                     if !line.is_empty() {
-                        self.segmenter.add_sentence_with_writer(line, &mut learner);
+                        self.segmenter.add_corpus_with_writer(line, &mut learner);
                     }
                 }
                 Err(err) => {
