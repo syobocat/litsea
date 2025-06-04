@@ -407,3 +407,168 @@ impl AdaBoost {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::collections::HashSet;
+    use std::io::Write;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+
+    use tempfile::NamedTempFile;
+
+    #[test]
+    fn test_initialize_features() -> std::io::Result<()> {
+        // Create a dummy features file
+        let mut features_file = NamedTempFile::new()?;
+        writeln!(features_file, "1 feat1 feat2")?;
+        writeln!(features_file, "0 feat3")?;
+        features_file.as_file().sync_all()?;
+
+        let mut learner = AdaBoost::new(0.01, 10, 1);
+        learner.initialize_features(features_file.path())?;
+
+        // Features is an ordered set that should contain ""(empty string), "feat1", "feat2", "feat3"
+        assert!(learner.features.contains(&"".to_string()));
+        assert!(learner.features.contains(&"feat1".to_string()));
+        assert!(learner.features.contains(&"feat2".to_string()));
+        assert!(learner.features.contains(&"feat3".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_initialize_instances() -> std::io::Result<()> {
+        // First, initialize features in the feature file.
+        let mut features_file = NamedTempFile::new()?;
+        writeln!(features_file, "1 feat1 feat2")?;
+        features_file.as_file().sync_all()?;
+
+        let mut learner = AdaBoost::new(0.01, 10, 1);
+        learner.initialize_features(features_file.path())?;
+
+        // Create a dummy instance file
+        let mut instance_file = NamedTempFile::new()?;
+        // Example: "1 feat1" line. The learner will consider feat1 as a candidate if found by binary_search.
+        writeln!(instance_file, "1 feat1")?;
+        instance_file.as_file().sync_all()?;
+
+        learner.initialize_instances(instance_file.path())?;
+
+        // The number of instances should be 1, and the instance_weights, labels, and instances should be updated accordingly.
+        assert_eq!(learner.num_instances, 1);
+        assert_eq!(learner.labels.len(), 1);
+        assert_eq!(learner.instance_weights.len(), 1);
+        assert_eq!(learner.instances.len(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_train() -> std::io::Result<()> {
+        // Initialize features using a features file.
+        let mut features_file = NamedTempFile::new()?;
+        writeln!(features_file, "1 feat1 feat2")?;
+        features_file.as_file().sync_all()?;
+
+        let mut learner = AdaBoost::new(0.01, 3, 1);
+        learner.initialize_features(features_file.path())?;
+
+        // Create a dummy instance file with one instance.
+        let mut instance_file = NamedTempFile::new()?;
+        writeln!(instance_file, "1 feat1")?;
+        instance_file.as_file().sync_all()?;
+        learner.initialize_instances(instance_file.path())?;
+
+        // Set running to false to immediately exit the learning loop.
+        let running = Arc::new(AtomicBool::new(false));
+        learner.train(running.clone());
+
+        // If normalization of model or instance_weights is performed after learning, it should be OK.
+        let weight_sum: f64 = learner.instance_weights.iter().sum();
+
+        // weight_sum should be normalized to 1.0.
+        assert!((weight_sum - 1.0).abs() < 1e-6);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_save_and_load_model() -> std::io::Result<()> {
+        // Prepare a dummy learner.
+        let mut learner = AdaBoost::new(0.01, 10, 1);
+
+        // Set the features and weights in advance.
+        learner.features = vec!["feat1".to_string(), "feat2".to_string()];
+        learner.model = vec![0.5, -0.3];
+
+        // Save the model to a temporary file.
+        let temp_model = NamedTempFile::new()?;
+        learner.save_model(temp_model.path())?;
+
+        // Load the model with a new learner.
+        let mut learner2 = AdaBoost::new(0.01, 10, 1);
+        learner2.load_model(temp_model.path())?;
+
+        // Check that the number of features and models match.
+        assert_eq!(learner2.features.len(), learner.features.len());
+        assert_eq!(learner2.model.len(), learner.model.len());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_instance_and_predict() {
+        let mut learner = AdaBoost::new(0.01, 10, 1);
+
+        // Here, features and model are empty in the initial state. They are newly registered by add_instance.
+        let mut attrs = HashSet::new();
+        attrs.insert("A".to_string());
+        learner.add_instance(attrs.clone(), 1);
+
+        // When the same attribute is passed to predict, score returns 1 based on the initial model value (0.0) (because score>=0).
+        let prediction = learner.predict(attrs);
+        assert_eq!(prediction, 1);
+    }
+
+    #[test]
+    fn test_get_bias() {
+        let mut learner = AdaBoost::new(0.01, 10, 1);
+
+        // Set model weights as an example.
+        learner.model = vec![0.2, 0.3, -0.1];
+
+        // bias = -sum(model)/2 = -(0.2+0.3-0.1)/2 = -0.4/2 = -0.2
+        assert!((learner.get_bias() + 0.2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_get_metrics() {
+        let mut learner = AdaBoost::new(0.01, 10, 1);
+
+        // Set features and model for prediction
+        learner.features = vec!["A".to_string(), "B".to_string()];
+        learner.model = vec![0.5, -1.0];
+
+        // Instance 1: Attribute “A” → score = 0.25 + 0.5 = 0.75 (positive example)
+        let mut attrs1 = HashSet::new();
+        attrs1.insert("A".to_string());
+        learner.add_instance(attrs1, 1);
+
+        // Instance 2: Attribute “B” → score = 0.25 + (-1.0) = -0.75 (negative example)
+        let mut attrs2 = HashSet::new();
+        attrs2.insert("B".to_string());
+        learner.add_instance(attrs2, -1);
+
+        let metrics = learner.get_metrics();
+        assert_eq!(metrics.true_positives, 1);
+        assert_eq!(metrics.true_negatives, 1);
+        assert_eq!(metrics.false_positives, 0);
+        assert_eq!(metrics.false_negatives, 0);
+        assert_eq!(metrics.num_instances, 2);
+
+        // Since this is a simple case, the accuracy is 100%.
+        assert!((metrics.accuracy - 100.0).abs() < 1e-6);
+    }
+}

@@ -87,11 +87,14 @@ impl Trainer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adaboost::Metrics;
+
     use std::io::Write;
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
+
     use tempfile::NamedTempFile;
+
+    use crate::adaboost::Metrics;
 
     // Helper: create a dummy features file.
     // This file should contain at least one line for initialize_features and initialize_instances.

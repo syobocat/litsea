@@ -286,9 +286,9 @@ impl Segmenter {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
+
+    use std::path::PathBuf;
 
     #[test]
     fn test_add_sentence_with_writer() {
