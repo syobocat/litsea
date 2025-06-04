@@ -292,16 +292,18 @@ mod tests {
 
     #[test]
     fn test_segmenter() {
+        let sentence = "これはテストです。";
+
         let model_file =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("./resources").join("RWCP.model");
-
         let mut learner = AdaBoost::new(0.01, 100, 1);
         learner.load_model(model_file.as_path()).unwrap();
 
         let mut segmenter = Segmenter::new(Some(learner));
-        let sentence = "これはテストです。";
+
         segmenter.add_sentence(sentence);
         let result = segmenter.segment(sentence);
+
         assert!(!result.is_empty());
         assert_eq!(result.len(), 5); // Adjust based on expected segmentation
         assert_eq!(result[0], "これ");
@@ -314,6 +316,7 @@ mod tests {
     #[test]
     fn test_get_type() {
         let segmenter = Segmenter::new(None);
+
         assert_eq!(segmenter.get_type("あ"), "I"); // Hiragana
         assert_eq!(segmenter.get_type("漢"), "H"); // Kanji
         assert_eq!(segmenter.get_type("A"), "A"); // Latin
