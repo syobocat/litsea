@@ -80,14 +80,17 @@ The output from the `train` command is similar to:
 
 ```text
 finding instances...: 61 instances found
-
+loading instances...: 61/61 instances loaded
 Iteration 9999 - margin: 0.16068839956263622
-Result:
-Accuracy: 100.00% (61 / 61)
-Precision: 100.00% (24 / 24)
-Recall: 100.00% (24 / 24)
-Confusion Matrix: TP: 24, FP: 0, FN: 0, TN: 37
-Training completed successfully.
+Result Metrics:
+  Accuracy: 100.00% ( 61 / 61 )
+  Precision: 100.00% ( 24 / 24 )
+  Recall: 100.00% ( 24 / 24 )
+  Confusion Matrix:
+    True Positives: 24
+    False Positives: 0
+    False Negatives: 0
+    True Negatives: 37
 ```
 
 ## How to segment sentences into words
