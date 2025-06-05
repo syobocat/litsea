@@ -122,3 +122,9 @@ You can further improve performance by resuming training from an existing model 
 ```sh
 ./target/release/litsea train -t 0.001 -i 10000 -m ./resources/model ./resources/new_features.txt ./resources/new_model
 ```
+
+## License
+
+This project is distributed under the MIT License.  
+It also contains code originally developed by Taku Kudo and released under the BSD 3-Clause License.  
+See the LICENSE file for details.
