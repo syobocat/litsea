@@ -315,6 +315,20 @@ impl AdaBoost {
     pub fn load_model(&mut self, filename: &Path) -> std::io::Result<()> {
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
+        self.load_model_from_reader(reader)
+    }
+
+    /// Loads a model from a BufRead.
+    /// The contents should contain lines with a feature and its weight,
+    /// with the last line containing the bias term.
+    ///
+    /// # Arguments
+    /// * `reader`: The BufRead containing the model.
+    ///
+    /// # Returns: A result indicating success or failure.
+    ///
+    /// # Errors: Returns an error if the contents cannot be read.
+    pub fn load_model_from_reader<R: BufRead>(&mut self, reader: R) -> std::io::Result<()> {
         let mut m: HashMap<String, f64> = HashMap::new();
         let mut bias = 0.0;
 
